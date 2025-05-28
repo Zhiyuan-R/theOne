@@ -19,9 +19,10 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+cors_origins = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this properly for production
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,10 +41,8 @@ app.include_router(expectations.router, prefix="/api")
 app.include_router(matches.router, prefix="/api")
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    create_tables()
+# Initialize database on startup
+create_tables()
 
 
 @app.get("/", response_class=HTMLResponse)

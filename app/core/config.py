@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     allowed_image_extensions: set = {".jpg", ".jpeg", ".png", ".webp"}
     allowed_audio_extensions: set = {".mp3", ".wav", ".m4a"}
 
+    # Server Configuration (for Docker deployment)
+    host: str = "0.0.0.0"
+    port: int = 8000
+    workers: int = 2
+
+    # CORS Configuration
+    cors_origins: str = "*"
+
+    # Logging Configuration
+    log_level: str = "INFO"
+    log_file: str = "/var/log/theone.log"
+
     class Config:
         env_file = ".env"
 
