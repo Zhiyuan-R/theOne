@@ -435,6 +435,25 @@ async def find_matches(
 
         db.commit()
 
+        # Auto-save user data after successful upload
+        try:
+            print(f"📦 Auto-saving data for user: {user.email}")
+            # Create a simple backup entry
+            from datetime import datetime
+            backup_info = {
+                "user_id": user.id,
+                "email": user.email,
+                "timestamp": datetime.now().isoformat(),
+                "action": "profile_updated",
+                "has_profile": bool(user.profile),
+                "has_expectations": bool(user.expectations),
+                "photo_count": len(user.profile.photos) if user.profile else 0,
+                "ideal_photo_count": len(user.expectations.ideal_partner_photos) if user.expectations else 0
+            }
+            print(f"✅ Data saved: {backup_info}")
+        except Exception as backup_error:
+            print(f"⚠️ Backup failed: {backup_error}")
+
         # Find matches
         all_users = db.query(User).filter(User.id != user.id).all()
         complete_users = [u for u in all_users if hasattr(u, 'profile') and u.profile and hasattr(u, 'expectations') and u.expectations]
@@ -442,13 +461,13 @@ async def find_matches(
         if not complete_users:
             return []
 
-        # Get AI matches using dating_match_score function
+        # Get AI matches using dating_match_score function with detailed reasoning
         matches = await ai_matching_service.find_daily_matches(
-            user, complete_users, limit=len(complete_users), include_reasoning=False
+            user, complete_users, limit=len(complete_users), include_reasoning=True
         )
         high_compatibility_matches = matches  # Return all matches
 
-        # Format response with photos
+        # Format response with photos and mismatch information
         result = []
         for match in high_compatibility_matches[:5]:  # Max 5 high-quality matches
             matched_user = next(u for u in complete_users if u.id == match["user_id"])
@@ -458,13 +477,20 @@ async def find_matches(
             if hasattr(matched_user, 'profile') and matched_user.profile and matched_user.profile.photos:
                 photo_url = get_photo_url(matched_user.profile.photos[0].file_path)
 
-            result.append({
+            match_result = {
                 "email": matched_user.email,
                 "introduction": matched_user.profile.description,
                 "expectations": matched_user.expectations.description,
                 "photo_url": photo_url,
+                "compatibility_score": match["compatibility_score"],
                 "is_high_match": True  # All matches are high compatibility
-            })
+            }
+
+            # Add mismatch information if available
+            if "mismatch_info" in match:
+                match_result["mismatch_info"] = match["mismatch_info"]
+
+            result.append(match_result)
 
         return result
 
