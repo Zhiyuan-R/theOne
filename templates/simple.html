@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>theOne - Find Your Match</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-form {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .photo-upload {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f9f9f9;
+        }
+
+        .photo-upload:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .photo-upload input {
+            display: none;
+        }
+
+        .photo-preview {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .matches-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-top: 20px;
+            display: none;
+        }
+
+        .match-card {
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: transform 0.3s ease;
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .match-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .match-photo {
+            width: 100px;
+            height: 100px;
+            border-radius: 10px;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 2rem;
+        }
+
+        .match-info {
+            flex: 1;
+        }
+
+        .match-email {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .high-match-badge {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #fab1a0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .main-form {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>💕 theOne</h1>
+            <p>Upload photo + intro + expectations = Find your match!</p>
+        </header>
+
+        <div class="main-form">
+            <form id="matchForm">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required placeholder="your@email.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="photo">Your Photo:</label>
+                    <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
+                        <input type="file" id="photoInput" accept="image/*" onchange="previewPhoto(this)">
+                        <div id="photoText">📸 Click to upload your photo</div>
+                        <img id="photoPreview" class="photo-preview" style="display: none;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="introduction">About You:</label>
+                    <textarea id="introduction" name="introduction" required
+                              placeholder="Tell us about yourself, your interests, lifestyle, what makes you unique..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="expectations">What You're Looking For:</label>
+                    <textarea id="expectations" name="expectations" required
+                              placeholder="Describe your ideal partner, what you're seeking in a relationship..."></textarea>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    🔍 Find My Matches
+                </button>
+            </form>
+        </div>
+
+        <div id="matchesSection" class="matches-section">
+            <h2>Your Matches</h2>
+            <div id="matchesContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        function previewPhoto(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('photoPreview');
+                    const text = document.getElementById('photoText');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    text.textContent = '✅ Photo uploaded! Click to change';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // Auto-load existing user data when email is entered
+        document.getElementById('email').addEventListener('blur', async function() {
+            const email = this.value.trim();
+            if (!email || !email.includes('@')) return;
+
+            try {
+                const response = await fetch(`/api/get-user/${encodeURIComponent(email)}`);
+                if (response.ok) {
+                    const userData = await response.json();
+                    if (userData.exists) {
+                        // Fill in existing data
+                        document.getElementById('introduction').value = userData.introduction || '';
+                        document.getElementById('expectations').value = userData.expectations || '';
+
+                        // Show existing photo if available
+                        if (userData.photo_url) {
+                            const preview = document.getElementById('photoPreview');
+                            const text = document.getElementById('photoText');
+                            preview.src = userData.photo_url;
+                            preview.style.display = 'block';
+                            text.textContent = '✅ Current photo (click to change)';
+                        }
+
+                        // Show a message that data was loaded
+                        const submitBtn = document.getElementById('submitBtn');
+                        submitBtn.textContent = '🔄 Update & Find Matches';
+                    }
+                }
+            } catch (error) {
+                console.log('Could not load existing user data:', error);
+            }
+        });
+
+        document.getElementById('matchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const matchesSection = document.getElementById('matchesSection');
+            const matchesContainer = document.getElementById('matchesContainer');
+
+            // Show loading
+            submitBtn.disabled = true;
+            submitBtn.textContent = '🔍 Finding matches...';
+            matchesSection.style.display = 'block';
+            matchesContainer.innerHTML = '<div class="loading">🤖 AI is analyzing your profile and finding compatible matches...</div>';
+
+            try {
+                // Get form data
+                const formData = new FormData();
+                formData.append('email', document.getElementById('email').value);
+                formData.append('introduction', document.getElementById('introduction').value);
+                formData.append('expectations', document.getElementById('expectations').value);
+
+                const photoFile = document.getElementById('photoInput').files[0];
+                if (photoFile) {
+                    formData.append('photo', photoFile);
+                }
+
+                // Submit to API (you'll need to implement this endpoint)
+                const response = await fetch('/api/find-matches', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to find matches');
+                }
+
+                const matches = await response.json();
+
+                // Display matches
+                if (matches.length === 0) {
+                    matchesContainer.innerHTML = '<div class="loading">🎯 No high-compatibility matches found yet.<br>Our AI only shows very compatible matches (70%+ compatibility).<br>Try updating your profile for better matches!</div>';
+                } else {
+                    matchesContainer.innerHTML = matches.map(match => `
+                        <div class="match-card">
+                            <div class="match-photo">
+                                ${match.photo_url ?
+                                    `<img src="${match.photo_url}" alt="Profile photo" class="match-photo">` :
+                                    '📷'
+                                }
+                            </div>
+                            <div class="match-info">
+                                <div class="high-match-badge">🌟 High Compatibility Match</div>
+                                <div class="match-email">${match.email}</div>
+                                <p><strong>About:</strong> ${match.introduction}</p>
+                                <p><strong>Looking for:</strong> ${match.expectations}</p>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+            } catch (error) {
+                matchesContainer.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🔍 Find My Matches';
+            }
+        });
+    </script>
+</body>
+</html>
