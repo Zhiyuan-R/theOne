@@ -1,9 +1,11 @@
 """
-AI-powered matching service using only OpenAI APIs (GPT-4, GPT-4 Vision, and Embeddings)
+AI-powered bidirectional matching service using only GPT-4o-mini
+Specialized for BDSM and alternative lifestyle dating with comprehensive compatibility analysis
 """
 import base64
 from typing import List, Dict
 import openai
+import json
 
 from app.core.config import settings
 from app.models.user import User, Profile, Expectation
@@ -11,48 +13,221 @@ from app.models.user import User, Profile, Expectation
 
 class AIMatchingService:
     def __init__(self):
-        # Using only OpenAI APIs - no open-source models
-        pass
+        # Using only GPT-4o-mini for all analysis - no embeddings
+        self.system_prompt = """
+You are an expert relationship compatibility analyst specializing in BDSM, kink, and alternative lifestyle dating. You have deep knowledge of:
+
+BDSM FUNDAMENTALS:
+- Power exchange dynamics (Dom/sub, Master/slave, Owner/pet, etc.)
+- BDSM roles and relationship structures (24/7, bedroom only, switches, etc.)
+- Kink categories: Impact play, bondage, sensory play, psychological play, etc.
+- Safety principles: SSC (Safe, Sane, Consensual), RACK (Risk Aware Consensual Kink)
+- Communication protocols, limits, safewords, aftercare
+
+RELATIONSHIP DYNAMICS:
+- Traditional monogamous relationships
+- Polyamory, open relationships, relationship anarchy
+- LGBTQ+ relationships and gender identities
+- Age gap relationships and power dynamics
+- Alternative family structures
+
+COMPATIBILITY FACTORS:
+- Experience levels and learning curves
+- Hard limits vs soft limits vs interests to explore
+- Communication styles and emotional needs
+- Lifestyle integration (public vs private, 24/7 vs scene-only)
+- Long-term relationship goals and growth potential
+
+You analyze compatibility with nuance, respect, and deep understanding of consent culture.
+You never judge any consensual adult relationship style or kink preference.
+You focus on communication, compatibility, safety, and mutual growth.
+"""
 
     def encode_image_to_base64(self, image_path: str) -> str:
         """Encode image to base64 for OpenAI Vision API"""
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
 
-    async def get_text_similarity(self, text1: str, text2: str) -> float:
-        """Calculate semantic similarity between two texts using OpenAI embeddings"""
+    async def calculate_user_score_for_target(
+        self,
+        user_a_profile: str,
+        user_a_expectations: str,
+        user_a_ideal_photos: List[str],
+        user_b_profile: str,
+        user_b_photos: List[str]
+    ) -> Dict[str, any]:
+        """
+        Calculate how well User B matches what User A is looking for
+        Returns a score from User A's perspective about User B
+        """
         try:
             client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
 
-            # Get embeddings for both texts
-            response1 = await client.embeddings.create(
-                model="text-embedding-3-small",  # OpenAI's latest embedding model
-                input=text1
+            # Prepare the analysis prompt
+            analysis_prompt = f"""
+Analyze how well User B matches what User A is looking for in a partner.
+
+USER A PROFILE: {user_a_profile}
+
+USER A EXPECTATIONS: {user_a_expectations}
+
+USER B PROFILE: {user_b_profile}
+
+Analyze the compatibility from User A's perspective:
+
+1. TEXT COMPATIBILITY: How well does User B's profile match User A's expectations?
+   - Role compatibility (Dom/sub dynamics, switches, vanilla preferences)
+   - Experience levels and learning interests
+   - Kink interests and limits alignment
+   - Communication style and emotional needs
+   - Lifestyle preferences (24/7, bedroom only, public/private)
+   - Relationship structure preferences (monogamy, polyamory, etc.)
+
+2. OVERALL ASSESSMENT: Rate the match from User A's perspective (0.0 to 1.0)
+   - 0.0-0.3: Poor match, significant incompatibilities
+   - 0.4-0.6: Moderate match, some compatibility
+   - 0.7-0.8: Good match, strong compatibility
+   - 0.9-1.0: Excellent match, exceptional compatibility
+
+Provide your analysis in this exact JSON format:
+{{
+    "text_score": 0.85,
+    "role_compatibility": 0.90,
+    "experience_compatibility": 0.80,
+    "kink_compatibility": 0.85,
+    "lifestyle_compatibility": 0.80,
+    "communication_compatibility": 0.90,
+    "overall_score": 0.85,
+    "reasoning": "Detailed explanation of why this is or isn't a good match from User A's perspective"
+}}
+"""
+
+            response = await client.chat.completions.create(
+                model=settings.gpt_model,  # gpt-4o-mini
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": analysis_prompt}
+                ],
+                max_tokens=500,
+                temperature=0.3
             )
-            response2 = await client.embeddings.create(
-                model="text-embedding-3-small",
-                input=text2
-            )
 
-            # Extract embeddings
-            embedding1 = response1.data[0].embedding
-            embedding2 = response2.data[0].embedding
+            # Parse JSON response
+            result_text = response.choices[0].message.content.strip()
+            start_idx = result_text.find('{')
+            end_idx = result_text.rfind('}') + 1
 
-            # Calculate cosine similarity
-            dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
-            magnitude1 = sum(a * a for a in embedding1) ** 0.5
-            magnitude2 = sum(a * a for a in embedding2) ** 0.5
+            if start_idx != -1 and end_idx != -1:
+                json_str = result_text[start_idx:end_idx]
+                result = json.loads(json_str)
 
-            if magnitude1 == 0 or magnitude2 == 0:
-                return 0.0
+                # Validate and clamp scores
+                for key in ['text_score', 'role_compatibility', 'experience_compatibility',
+                           'kink_compatibility', 'lifestyle_compatibility', 'communication_compatibility', 'overall_score']:
+                    if key in result:
+                        result[key] = max(0.0, min(1.0, float(result[key])))
 
-            similarity = dot_product / (magnitude1 * magnitude2)
-            return max(0.0, min(1.0, similarity))  # Clamp between 0 and 1
+                return result
+            else:
+                raise ValueError("No valid JSON found in response")
 
         except Exception as e:
-            print(f"Error in OpenAI text similarity: {e}")
-            # Fallback to simple text analysis using LLM
-            return await self.get_llm_text_similarity_fallback(text1, text2)
+            print(f"Error in user score calculation: {e}")
+            return {
+                "text_score": 0.5,
+                "role_compatibility": 0.5,
+                "experience_compatibility": 0.5,
+                "kink_compatibility": 0.5,
+                "lifestyle_compatibility": 0.5,
+                "communication_compatibility": 0.5,
+                "overall_score": 0.5,
+                "reasoning": "Analysis unavailable due to technical error"
+            }
+
+    async def calculate_visual_compatibility(
+        self,
+        user_a_ideal_photos: List[str],
+        user_b_photos: List[str]
+    ) -> float:
+        """
+        Calculate visual compatibility between User A's ideal partner photos and User B's actual photos
+        """
+        if not user_a_ideal_photos or not user_b_photos:
+            return 0.0
+
+        try:
+            client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+
+            # Prepare images for the API call (limit to avoid token limits)
+            ideal_images_b64 = [self.encode_image_to_base64(img) for img in user_a_ideal_photos[:2]]
+            actual_images_b64 = [self.encode_image_to_base64(img) for img in user_b_photos[:3]]
+
+            # Create the visual analysis prompt
+            visual_prompt = """
+Analyze the visual compatibility between the ideal partner photos and the actual person's photos.
+
+Consider:
+- Physical appearance and aesthetic preferences
+- Style, fashion, and presentation
+- Energy, vibe, and overall appeal
+- Body type and physical characteristics
+- How well the actual person matches the ideal preferences
+
+Rate the visual compatibility from 0.0 to 1.0:
+- 0.0-0.3: Poor visual match
+- 0.4-0.6: Moderate visual compatibility
+- 0.7-0.8: Good visual match
+- 0.9-1.0: Excellent visual compatibility
+
+Respond with only a single number between 0.0 and 1.0.
+"""
+
+            # Prepare messages with images
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": visual_prompt},
+                        {"type": "text", "text": "IDEAL PARTNER PHOTOS:"}
+                    ]
+                }
+            ]
+
+            # Add ideal partner photos
+            for img_b64 in ideal_images_b64:
+                messages[0]["content"].append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}
+                })
+
+            messages[0]["content"].append({"type": "text", "text": "ACTUAL PERSON PHOTOS:"})
+
+            # Add actual person photos
+            for img_b64 in actual_images_b64:
+                messages[0]["content"].append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}
+                })
+
+            # Make API call
+            response = await client.chat.completions.create(
+                model=settings.gpt_model,  # gpt-4o-mini supports vision
+                messages=messages,
+                max_tokens=10,
+                temperature=0.3
+            )
+
+            # Extract and validate the score
+            score_text = response.choices[0].message.content.strip()
+            try:
+                score = float(score_text)
+                return max(0.0, min(1.0, score))
+            except ValueError:
+                return 0.5
+
+        except Exception as e:
+            print(f"Error in visual compatibility analysis: {e}")
+            return 0.0
 
     async def get_llm_text_similarity_fallback(self, text1: str, text2: str) -> float:
         """Fallback method using LLM to assess text similarity when embeddings fail"""
@@ -449,109 +624,169 @@ class AIMatchingService:
                 "growth_potential": "This connection offers opportunities for mutual growth and understanding."
             }
 
-    async def calculate_compatibility_score(
+    async def calculate_bidirectional_compatibility(
         self,
-        user_profile: Profile,
-        target_profile: Profile,
-        user_expectations: Expectation,
-        target_expectations: Expectation,
+        user_a: User,
+        user_b: User,
         include_reasoning: bool = False
     ) -> Dict[str, any]:
         """
-        Calculate comprehensive compatibility score between two users with enhanced LLM analysis
+        NEW BIDIRECTIONAL MATCHING: Calculate how well each user matches what the other is looking for
+        Only show matches when BOTH scores are high (mutual compatibility)
         """
-        # 1. OpenAI embeddings text similarity (bidirectional) - for baseline
-        user_to_target_text_sim = await self.get_text_similarity(
-            user_expectations.description,
-            target_profile.description
-        )
-        target_to_user_text_sim = await self.get_text_similarity(
-            target_expectations.description,
-            user_profile.description
-        )
-        basic_text_similarity = (user_to_target_text_sim + target_to_user_text_sim) / 2
+        # Get user data
+        user_a_profile = user_a.profile.description
+        user_a_expectations = user_a.expectations.description
+        user_a_photos = [photo.file_path for photo in user_a.profile.photos]
+        user_a_ideal_photos = [photo.file_path for photo in user_a.expectations.ideal_partner_photos]
 
-        # 2. Enhanced LLM text compatibility analysis (bidirectional)
-        user_to_target_llm = await self.get_llm_text_compatibility(
-            target_profile.description,
-            user_expectations.description
-        )
-        target_to_user_llm = await self.get_llm_text_compatibility(
-            user_profile.description,
-            target_expectations.description
+        user_b_profile = user_b.profile.description
+        user_b_expectations = user_b.expectations.description
+        user_b_photos = [photo.file_path for photo in user_b.profile.photos]
+        user_b_ideal_photos = [photo.file_path for photo in user_b.expectations.ideal_partner_photos]
+
+        # Calculate User A's score for User B (how well B matches what A wants)
+        a_scores_b = await self.calculate_user_score_for_target(
+            user_a_profile, user_a_expectations, user_a_ideal_photos,
+            user_b_profile, user_b_photos
         )
 
-        # Average the LLM scores
-        llm_text_score = (user_to_target_llm["overall_score"] + target_to_user_llm["overall_score"]) / 2
-
-        # Combine basic similarity with LLM analysis (weighted)
-        enhanced_text_similarity = (basic_text_similarity * 0.3) + (llm_text_score * 0.7)
-
-        # 3. Visual compatibility (bidirectional) - Enhanced with ideal partner photos
-        user_photos = [photo.file_path for photo in user_profile.photos]
-        target_photos = [photo.file_path for photo in target_profile.photos]
-        user_expectation_images = [img.file_path for img in user_expectations.example_images]
-        target_expectation_images = [img.file_path for img in target_expectations.example_images]
-        user_ideal_partner_photos = [img.file_path for img in user_expectations.ideal_partner_photos]
-        target_ideal_partner_photos = [img.file_path for img in target_expectations.ideal_partner_photos]
-
-        # Original visual compatibility (profile photos vs expectation images)
-        user_to_target_visual = await self.get_visual_compatibility(
-            target_photos, user_expectation_images
-        )
-        target_to_user_visual = await self.get_visual_compatibility(
-            user_photos, target_expectation_images
+        # Calculate User B's score for User A (how well A matches what B wants)
+        b_scores_a = await self.calculate_user_score_for_target(
+            user_b_profile, user_b_expectations, user_b_ideal_photos,
+            user_a_profile, user_a_photos
         )
 
-        # New ideal partner photo compatibility (profile photos vs ideal partner photos)
-        user_to_target_ideal = await self.get_ideal_partner_compatibility(
-            target_photos, user_ideal_partner_photos
-        )
-        target_to_user_ideal = await self.get_ideal_partner_compatibility(
-            user_photos, target_ideal_partner_photos
-        )
+        # Calculate visual compatibility scores
+        visual_a_to_b = await self.calculate_visual_compatibility(user_a_ideal_photos, user_b_photos)
+        visual_b_to_a = await self.calculate_visual_compatibility(user_b_ideal_photos, user_a_photos)
 
-        # Combine both visual compatibility scores
-        # Weight: 60% ideal partner matching, 40% expectation images
-        user_to_target_combined = (user_to_target_ideal * 0.6) + (user_to_target_visual * 0.4)
-        target_to_user_combined = (target_to_user_ideal * 0.6) + (target_to_user_visual * 0.4)
-        visual_similarity = (user_to_target_combined + target_to_user_combined) / 2
+        # Combine text and visual scores for each direction
+        a_overall_score = (a_scores_b["overall_score"] * 0.7) + (visual_a_to_b * 0.3)
+        b_overall_score = (b_scores_a["overall_score"] * 0.7) + (visual_b_to_a * 0.3)
 
-        # 4. Calculate overall compatibility with enhanced weights
-        text_weight = 0.65  # Increased weight for enhanced text analysis
-        visual_weight = 0.35
+        # BIDIRECTIONAL REQUIREMENT: Both scores must be high for a match
+        # Only show if both users would be satisfied with each other
+        mutual_compatibility = min(a_overall_score, b_overall_score)  # Lowest score determines match quality
+        average_compatibility = (a_overall_score + b_overall_score) / 2
 
-        overall_score = (enhanced_text_similarity * text_weight) + (visual_similarity * visual_weight)
-
-        # 5. Prepare result
         result = {
-            "overall_score": overall_score,
-            "text_similarity": enhanced_text_similarity,
-            "visual_similarity": visual_similarity,
-            "basic_text_similarity": basic_text_similarity,
-            "llm_text_score": llm_text_score,
-            "personality_score": (user_to_target_llm.get("personality_score", 0.5) + target_to_user_llm.get("personality_score", 0.5)) / 2,
-            "lifestyle_score": (user_to_target_llm.get("lifestyle_score", 0.5) + target_to_user_llm.get("lifestyle_score", 0.5)) / 2,
-            "emotional_score": (user_to_target_llm.get("emotional_score", 0.5) + target_to_user_llm.get("emotional_score", 0.5)) / 2,
-            "longterm_score": (user_to_target_llm.get("longterm_score", 0.5) + target_to_user_llm.get("longterm_score", 0.5)) / 2,
-            # New ideal partner compatibility scores
-            "ideal_partner_score": (user_to_target_ideal + target_to_user_ideal) / 2,
-            "expectation_visual_score": (user_to_target_visual + target_to_user_visual) / 2
+            # Bidirectional scores
+            "user_a_score_for_b": a_overall_score,  # How much A likes B
+            "user_b_score_for_a": b_overall_score,  # How much B likes A
+            "mutual_compatibility": mutual_compatibility,  # Minimum of both (strictest)
+            "average_compatibility": average_compatibility,  # Average of both
+
+            # Use mutual compatibility as the main score (both must be satisfied)
+            "overall_score": mutual_compatibility,
+
+            # Detailed breakdowns
+            "a_text_score": a_scores_b["overall_score"],
+            "b_text_score": b_scores_a["overall_score"],
+            "a_visual_score": visual_a_to_b,
+            "b_visual_score": visual_b_to_a,
+
+            # Role and compatibility details
+            "role_compatibility": (a_scores_b.get("role_compatibility", 0.5) + b_scores_a.get("role_compatibility", 0.5)) / 2,
+            "experience_compatibility": (a_scores_b.get("experience_compatibility", 0.5) + b_scores_a.get("experience_compatibility", 0.5)) / 2,
+            "kink_compatibility": (a_scores_b.get("kink_compatibility", 0.5) + b_scores_a.get("kink_compatibility", 0.5)) / 2,
+            "lifestyle_compatibility": (a_scores_b.get("lifestyle_compatibility", 0.5) + b_scores_a.get("lifestyle_compatibility", 0.5)) / 2,
+            "communication_compatibility": (a_scores_b.get("communication_compatibility", 0.5) + b_scores_a.get("communication_compatibility", 0.5)) / 2,
+
+            # Legacy compatibility for existing code
+            "text_similarity": (a_scores_b["overall_score"] + b_scores_a["overall_score"]) / 2,
+            "visual_similarity": (visual_a_to_b + visual_b_to_a) / 2
         }
 
-        # 6. Generate detailed reasoning if requested
+        # Add reasoning if requested
         if include_reasoning:
-            reasoning = await self.generate_compatibility_reasoning(
-                user_profile, target_profile, user_expectations, target_expectations,
-                result, user_to_target_llm
+            reasoning = await self.generate_bidirectional_reasoning(
+                user_a, user_b, a_scores_b, b_scores_a, result
             )
             result["reasoning"] = reasoning
 
         return result
 
+    async def generate_bidirectional_reasoning(
+        self,
+        user_a: User,
+        user_b: User,
+        a_scores_b: Dict,
+        b_scores_a: Dict,
+        compatibility_result: Dict
+    ) -> Dict[str, str]:
+        """
+        Generate detailed reasoning for bidirectional compatibility
+        """
+        try:
+            client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+
+            reasoning_prompt = f"""
+Generate a comprehensive compatibility analysis for this bidirectional match.
+
+USER A PROFILE: {user_a.profile.description}
+USER A EXPECTATIONS: {user_a.expectations.description}
+
+USER B PROFILE: {user_b.profile.description}
+USER B EXPECTATIONS: {user_b.expectations.description}
+
+COMPATIBILITY SCORES:
+- User A's satisfaction with User B: {compatibility_result['user_a_score_for_b']:.2f}
+- User B's satisfaction with User A: {compatibility_result['user_b_score_for_a']:.2f}
+- Mutual compatibility: {compatibility_result['mutual_compatibility']:.2f}
+- Role compatibility: {compatibility_result['role_compatibility']:.2f}
+- Kink compatibility: {compatibility_result['kink_compatibility']:.2f}
+
+USER A'S PERSPECTIVE: {a_scores_b.get('reasoning', 'N/A')}
+USER B'S PERSPECTIVE: {b_scores_a.get('reasoning', 'N/A')}
+
+Provide a detailed analysis in JSON format:
+{{
+    "summary": "2-3 sentence overall compatibility summary focusing on mutual satisfaction",
+    "strengths": "Key compatibility strengths from both perspectives",
+    "role_dynamics": "Analysis of Dom/sub or other role compatibility",
+    "shared_interests": "BDSM/kink interests and lifestyle compatibility",
+    "conversation_starters": "3 specific conversation topics based on their profiles",
+    "growth_potential": "How this relationship could help both people grow in their journey"
+}}
+"""
+
+            response = await client.chat.completions.create(
+                model=settings.gpt_model,
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": reasoning_prompt}
+                ],
+                max_tokens=600,
+                temperature=0.7
+            )
+
+            # Parse JSON response
+            result_text = response.choices[0].message.content.strip()
+            start_idx = result_text.find('{')
+            end_idx = result_text.rfind('}') + 1
+
+            if start_idx != -1 and end_idx != -1:
+                json_str = result_text[start_idx:end_idx]
+                return json.loads(json_str)
+            else:
+                raise ValueError("No valid JSON found in response")
+
+        except Exception as e:
+            print(f"Error in bidirectional reasoning generation: {e}")
+            return {
+                "summary": f"This bidirectional match shows {compatibility_result['mutual_compatibility']:.0%} mutual compatibility.",
+                "strengths": "Both users show potential for meaningful connection.",
+                "role_dynamics": "Compatible relationship dynamics and roles.",
+                "shared_interests": "Explore common BDSM/kink interests through conversation.",
+                "conversation_starters": "Ask about their experience, interests, and relationship goals.",
+                "growth_potential": "This connection offers opportunities for mutual exploration and growth."
+            }
+
     async def find_daily_matches(self, user: User, candidate_users: List[User], limit: int = 5, include_reasoning: bool = False) -> List[Dict]:
         """
-        Find the best daily matches for a user with enhanced AI analysis
+        NEW BIDIRECTIONAL MATCHING: Find matches where BOTH users are highly satisfied
+        Only shows matches when both users would be happy with each other
         """
         if not user.profile or not user.expectations:
             return []
@@ -564,39 +799,59 @@ class AIMatchingService:
                 not candidate.expectations):
                 continue
 
-            # Calculate enhanced compatibility with optional reasoning
-            compatibility = await self.calculate_compatibility_score(
-                user.profile,
-                candidate.profile,
-                user.expectations,
-                candidate.expectations,
+            # Use NEW bidirectional compatibility calculation
+            compatibility = await self.calculate_bidirectional_compatibility(
+                user,
+                candidate,
                 include_reasoning=include_reasoning
             )
 
-            match_data = {
-                "user_id": candidate.id,
-                "compatibility_score": compatibility["overall_score"],
-                "text_similarity": compatibility["text_similarity"],
-                "visual_similarity": compatibility["visual_similarity"],
-                "basic_text_similarity": compatibility["basic_text_similarity"],
-                "llm_text_score": compatibility["llm_text_score"],
-                "personality_score": compatibility["personality_score"],
-                "lifestyle_score": compatibility["lifestyle_score"],
-                "emotional_score": compatibility["emotional_score"],
-                "longterm_score": compatibility["longterm_score"],
-                "ideal_partner_score": compatibility.get("ideal_partner_score", 0.0),
-                "expectation_visual_score": compatibility.get("expectation_visual_score", 0.0)
-            }
+            # STRICT BIDIRECTIONAL FILTERING: Only include if BOTH users are satisfied
+            # This ensures mutual compatibility rather than one-sided attraction
+            mutual_score = compatibility["mutual_compatibility"]
 
-            # Add reasoning if requested
-            if include_reasoning and "reasoning" in compatibility:
-                match_data["reasoning"] = compatibility["reasoning"]
+            # Only include matches where both users score each other highly
+            # This prevents showing matches where only one person would be interested
+            if mutual_score >= 0.6:  # Both users must score each other at least 60%
+                match_data = {
+                    "user_id": candidate.id,
+                    "compatibility_score": mutual_score,  # Use mutual compatibility as main score
 
-            matches.append(match_data)
+                    # Bidirectional scores for transparency
+                    "user_satisfaction": compatibility["user_a_score_for_b"],  # How much current user likes candidate
+                    "candidate_satisfaction": compatibility["user_b_score_for_a"],  # How much candidate likes current user
+                    "mutual_compatibility": mutual_score,
+                    "average_compatibility": compatibility["average_compatibility"],
 
-        # Sort by compatibility score and return top matches
-        matches.sort(key=lambda x: x["compatibility_score"], reverse=True)
-        return matches[:limit]
+                    # Detailed compatibility breakdowns
+                    "text_similarity": compatibility["text_similarity"],
+                    "visual_similarity": compatibility["visual_similarity"],
+                    "role_compatibility": compatibility["role_compatibility"],
+                    "experience_compatibility": compatibility["experience_compatibility"],
+                    "kink_compatibility": compatibility["kink_compatibility"],
+                    "lifestyle_compatibility": compatibility["lifestyle_compatibility"],
+                    "communication_compatibility": compatibility["communication_compatibility"],
+
+                    # Individual scores for debugging
+                    "user_text_score": compatibility["a_text_score"],
+                    "candidate_text_score": compatibility["b_text_score"],
+                    "user_visual_score": compatibility["a_visual_score"],
+                    "candidate_visual_score": compatibility["b_visual_score"]
+                }
+
+                # Add reasoning if requested
+                if include_reasoning and "reasoning" in compatibility:
+                    match_data["reasoning"] = compatibility["reasoning"]
+
+                matches.append(match_data)
+
+        # Sort by mutual compatibility (strictest measure) and return top matches
+        matches.sort(key=lambda x: x["mutual_compatibility"], reverse=True)
+
+        # Apply additional filtering: only show very high quality matches
+        high_quality_matches = [m for m in matches if m["mutual_compatibility"] >= 0.7]
+
+        return high_quality_matches[:limit]
 
 
 # Global instance
