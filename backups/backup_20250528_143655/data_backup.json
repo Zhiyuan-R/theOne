@@ -1,0 +1,52 @@
+{
+  "backup_timestamp": "20250528_143655",
+  "users": [
+    {
+      "id": 1,
+      "email": "renzhiy1@msu.edu",
+      "hashed_password": "$2b$12$wx/SnuVuec5/LRJn4QyTO.17Cz.X0IBq1oPqu/P6.PGVT6K.G.YT.",
+      "is_active": true,
+      "created_at": "2025-05-28T20:36:58",
+      "updated_at": null
+    }
+  ],
+  "profiles": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "description": "xx",
+      "audio_clip_path": null,
+      "created_at": "2025-05-28T20:36:58",
+      "updated_at": null
+    }
+  ],
+  "expectations": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "description": "yy ",
+      "created_at": "2025-05-28T20:36:58",
+      "updated_at": null
+    }
+  ],
+  "photos": [
+    {
+      "id": 1,
+      "profile_id": 1,
+      "file_path": "static/uploads/profiles/1_下载.jpeg",
+      "order_index": 0,
+      "created_at": "2025-05-28T20:37:00"
+    }
+  ],
+  "example_images": [],
+  "ideal_partner_photos": [
+    {
+      "id": 1,
+      "expectation_id": 1,
+      "file_path": "static/uploads/ideal_partners/1_0_nvs.jpeg",
+      "order_index": 0,
+      "created_at": "2025-05-28T20:37:00"
+    }
+  ],
+  "matches": []
+}

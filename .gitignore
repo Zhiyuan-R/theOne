@@ -46,10 +46,14 @@ venv.bak/
 static/uploads/*
 !static/uploads/.gitkeep
 
-# Backups
-backups/
+# Backups - Allow user data backups to be committed for safety
+# backups/  # Commented out to allow backups to be committed
 *_backup_*.db
 static/uploads_backup_*
+
+# But exclude temporary backup files
+backups/temp_*
+backups/*.tmp
 
 # Logs
 *.log

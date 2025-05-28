@@ -620,6 +620,56 @@ async def copy_files_to_production():
         }
 
 
+@app.post("/api/backup-user-data")
+async def backup_user_data():
+    """Backup all user data (database + files) for safekeeping"""
+    import subprocess
+    from datetime import datetime
+
+    try:
+        # Run the backup script
+        result = subprocess.run(
+            ["python3", "backup_user_data.py"],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutes timeout
+        )
+
+        if result.returncode == 0:
+            # Check what was created
+            backup_info = {
+                "status": "success",
+                "timestamp": datetime.now().isoformat(),
+                "backup_output": result.stdout,
+                "files_created": []
+            }
+
+            # List backup files
+            if os.path.exists("backups"):
+                for filename in os.listdir("backups"):
+                    if filename.startswith("database_backup_") or filename.startswith("files_"):
+                        backup_info["files_created"].append(filename)
+
+            return backup_info
+        else:
+            return {
+                "status": "error",
+                "error": result.stderr,
+                "output": result.stdout
+            }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "error",
+            "error": "Backup process timed out"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @app.get("/api/get-user/{email}")
 async def get_user_data(email: str):
     """Get existing user data for editing"""
