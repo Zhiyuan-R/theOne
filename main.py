@@ -52,19 +52,25 @@ def get_photo_url(file_path: str) -> str:
     if not file_path:
         return None
 
-    # Handle different path formats
+    from urllib.parse import quote
+
+    # Handle different path formats and ensure absolute URLs
     if file_path.startswith('/app/data/uploads/'):
         # Production path - use /uploads/ mount
-        return file_path.replace('/app/data/uploads/', '/uploads/')
+        relative_path = file_path.replace('/app/data/uploads/', '')
+        # Use double slash to ensure it's treated as absolute
+        return f"//localhost:8000/uploads/{quote(relative_path)}" if settings.debug else f"/uploads/{quote(relative_path)}"
     elif file_path.startswith('static/uploads/'):
         # Development path - use /uploads/ mount
-        return file_path.replace('static/uploads/', '/uploads/')
+        relative_path = file_path.replace('static/uploads/', '')
+        # Use double slash to ensure it's treated as absolute
+        return f"//localhost:8000/uploads/{quote(relative_path)}" if settings.debug else f"/uploads/{quote(relative_path)}"
     elif file_path.startswith('static/'):
         # Other static files
-        return f"/{file_path}"
+        return f"//localhost:8000/{quote(file_path)}" if settings.debug else f"/{quote(file_path)}"
     else:
         # Assume it's a relative path in uploads
-        return f"/uploads/{file_path}"
+        return f"//localhost:8000/uploads/{quote(file_path)}" if settings.debug else f"/uploads/{quote(file_path)}"
 
 # Include API routers
 app.include_router(auth.router, prefix="/api")
@@ -92,6 +98,14 @@ async def root(request: Request):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+
+@app.get("/profiles/{filename:path}")
+async def redirect_profiles_to_uploads(filename: str):
+    """Redirect /profiles/ requests to /uploads/ (fix for browser URL interpretation)"""
+    print(f"DEBUG: Redirecting /profiles/{filename} to /uploads/{filename}")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/uploads/{filename}", status_code=301)
 
 
 @app.get("/admin", response_class=HTMLResponse)
