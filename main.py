@@ -54,23 +54,32 @@ def get_photo_url(file_path: str) -> str:
 
     from urllib.parse import quote
 
+    # Debug logging
+    print(f"DEBUG: Converting file_path '{file_path}' to URL")
+
     # Handle different path formats and ensure absolute URLs
     if file_path.startswith('/app/data/uploads/'):
         # Production path - use /uploads/ mount
         relative_path = file_path.replace('/app/data/uploads/', '')
-        # Use double slash to ensure it's treated as absolute
-        return f"//localhost:8000/uploads/{quote(relative_path)}" if settings.debug else f"/uploads/{quote(relative_path)}"
+        url = f"/uploads/{quote(relative_path)}"
+        print(f"DEBUG: Production path -> {url}")
+        return url
     elif file_path.startswith('static/uploads/'):
         # Development path - use /uploads/ mount
         relative_path = file_path.replace('static/uploads/', '')
-        # Use double slash to ensure it's treated as absolute
-        return f"//localhost:8000/uploads/{quote(relative_path)}" if settings.debug else f"/uploads/{quote(relative_path)}"
+        url = f"/uploads/{quote(relative_path)}"
+        print(f"DEBUG: Development path -> {url}")
+        return url
     elif file_path.startswith('static/'):
         # Other static files
-        return f"//localhost:8000/{quote(file_path)}" if settings.debug else f"/{quote(file_path)}"
+        url = f"/{quote(file_path)}"
+        print(f"DEBUG: Static path -> {url}")
+        return url
     else:
         # Assume it's a relative path in uploads
-        return f"//localhost:8000/uploads/{quote(file_path)}" if settings.debug else f"/uploads/{quote(file_path)}"
+        url = f"/uploads/{quote(file_path)}"
+        print(f"DEBUG: Relative path -> {url}")
+        return url
 
 # Include API routers
 app.include_router(auth.router, prefix="/api")
@@ -96,8 +105,30 @@ async def root(request: Request):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"}
+    """Health check endpoint with image serving status"""
+    # Check if upload directory exists and is accessible
+    upload_dir = settings.get_upload_dir()
+    upload_status = {
+        "upload_dir": upload_dir,
+        "exists": os.path.exists(upload_dir),
+        "writable": os.access(upload_dir, os.W_OK) if os.path.exists(upload_dir) else False
+    }
+
+    # Check subdirectories
+    subdirs = {}
+    for subdir in ['profiles', 'ideal_partners', 'expectations', 'audio']:
+        subdir_path = os.path.join(upload_dir, subdir)
+        subdirs[subdir] = {
+            "exists": os.path.exists(subdir_path),
+            "file_count": len(os.listdir(subdir_path)) if os.path.exists(subdir_path) else 0
+        }
+
+    return {
+        "status": "healthy",
+        "uploads": upload_status,
+        "subdirectories": subdirs,
+        "debug_mode": settings.debug
+    }
 
 
 @app.get("/profiles/{filename:path}")
