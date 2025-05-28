@@ -19,7 +19,7 @@ class UserResponse(UserBase):
     id: int
     is_active: bool
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -29,7 +29,7 @@ class PhotoResponse(BaseModel):
     id: int
     file_path: str
     order_index: int
-    
+
     class Config:
         from_attributes = True
 
@@ -49,7 +49,7 @@ class ProfileResponse(BaseModel):
     photos: List[PhotoResponse] = []
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -58,7 +58,16 @@ class ProfileResponse(BaseModel):
 class ExampleImageResponse(BaseModel):
     id: int
     file_path: str
-    
+
+    class Config:
+        from_attributes = True
+
+
+class IdealPartnerPhotoResponse(BaseModel):
+    id: int
+    file_path: str
+    order_index: int
+
     class Config:
         from_attributes = True
 
@@ -75,9 +84,10 @@ class ExpectationResponse(BaseModel):
     id: int
     description: str
     example_images: List[ExampleImageResponse] = []
+    ideal_partner_photos: List[IdealPartnerPhotoResponse] = []
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -92,7 +102,7 @@ class MatchResponse(BaseModel):
     is_viewed: bool
     created_at: datetime
     matched_user_profile: Optional[ProfileResponse] = None
-    
+
     class Config:
         from_attributes = True
 

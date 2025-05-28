@@ -66,7 +66,9 @@ async def generate_daily_matches(
                 personality_score=match_data["personality_score"],
                 lifestyle_score=match_data["lifestyle_score"],
                 emotional_score=match_data["emotional_score"],
-                longterm_score=match_data["longterm_score"]
+                longterm_score=match_data["longterm_score"],
+                ideal_partner_score=match_data.get("ideal_partner_score", 0.0),
+                expectation_visual_score=match_data.get("expectation_visual_score", 0.0)
             )
             db.add(db_match)
             saved_matches.append(db_match)

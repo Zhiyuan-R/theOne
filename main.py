@@ -1,6 +1,7 @@
 """
 Main FastAPI application for theOne dating app
 """
+from typing import List
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -244,7 +245,8 @@ async def find_matches(
     email: str = Form(...),
     introduction: str = Form(...),
     expectations: str = Form(...),
-    photo: UploadFile = File(None)
+    photo: UploadFile = File(None),
+    ideal_partner_photos: List[UploadFile] = File(default=[])
 ):
     """Simple endpoint: upload photo + intro + expectations, get matches"""
     from app.db.database import SessionLocal
@@ -304,6 +306,33 @@ async def find_matches(
             expectation = Expectation(user_id=user.id, description=expectations)
             db.add(expectation)
             db.flush()
+
+        # Handle ideal partner photos
+        if ideal_partner_photos and hasattr(user, 'expectations') and user.expectations:
+            from app.models.user import IdealPartnerPhoto
+            import os
+
+            # Create directory for ideal partner photos
+            os.makedirs("static/uploads/ideal_partners", exist_ok=True)
+
+            # Remove old ideal partner photos
+            for old_photo in user.expectations.ideal_partner_photos:
+                db.delete(old_photo)
+
+            # Add new ideal partner photos
+            for i, photo in enumerate(ideal_partner_photos):
+                if photo.filename:  # Check if file was actually uploaded
+                    photo_path = f"static/uploads/ideal_partners/{user.id}_{i}_{photo.filename}"
+                    with open(photo_path, "wb") as buffer:
+                        content = await photo.read()
+                        buffer.write(content)
+
+                    new_ideal_photo = IdealPartnerPhoto(
+                        expectation_id=user.expectations.id,
+                        file_path=photo_path,
+                        order_index=i
+                    )
+                    db.add(new_ideal_photo)
 
         db.commit()
 

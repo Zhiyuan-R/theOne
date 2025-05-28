@@ -255,6 +255,15 @@
                               placeholder="Describe your ideal partner, what you're seeking in a relationship..."></textarea>
                 </div>
 
+                <div class="form-group">
+                    <label for="idealPartnerPhotos">Ideal Partner Photos (Optional):</label>
+                    <div class="photo-upload" onclick="document.getElementById('idealPartnerInput').click()">
+                        <input type="file" id="idealPartnerInput" accept="image/*" multiple onchange="previewIdealPartnerPhotos(this)">
+                        <div id="idealPartnerText">📸 Click to upload photos of your ideal partner type</div>
+                        <div id="idealPartnerPreviews" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;"></div>
+                    </div>
+                </div>
+
                 <button type="submit" class="submit-btn" id="submitBtn">
                     🔍 Find My Matches
                 </button>
@@ -279,6 +288,38 @@
                     text.textContent = '✅ Photo uploaded! Click to change';
                 };
                 reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function previewIdealPartnerPhotos(input) {
+            const previewsContainer = document.getElementById('idealPartnerPreviews');
+            const text = document.getElementById('idealPartnerText');
+
+            // Clear existing previews
+            previewsContainer.innerHTML = '';
+
+            if (input.files && input.files.length > 0) {
+                text.textContent = `✅ ${input.files.length} ideal partner photo(s) uploaded! Click to change`;
+
+                // Show previews for each file
+                Array.from(input.files).forEach((file, index) => {
+                    if (index < 5) { // Limit to 5 photos
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const img = document.createElement('img');
+                            img.src = e.target.result;
+                            img.style.width = '80px';
+                            img.style.height = '80px';
+                            img.style.objectFit = 'cover';
+                            img.style.borderRadius = '8px';
+                            img.style.border = '2px solid #ddd';
+                            previewsContainer.appendChild(img);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            } else {
+                text.textContent = '📸 Click to upload photos of your ideal partner type';
             }
         }
 
@@ -338,6 +379,12 @@
                 const photoFile = document.getElementById('photoInput').files[0];
                 if (photoFile) {
                     formData.append('photo', photoFile);
+                }
+
+                // Add ideal partner photos
+                const idealPartnerFiles = document.getElementById('idealPartnerInput').files;
+                for (let i = 0; i < idealPartnerFiles.length; i++) {
+                    formData.append('ideal_partner_photos', idealPartnerFiles[i]);
                 }
 
                 // Submit to API (you'll need to implement this endpoint)

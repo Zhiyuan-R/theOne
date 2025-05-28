@@ -263,6 +263,88 @@ class AIMatchingService:
             print(f"Error in visual compatibility analysis: {e}")
             return 0.0
 
+    async def get_ideal_partner_compatibility(self, user_photos: List[str], ideal_partner_photos: List[str]) -> float:
+        """
+        Use GPT-4 Vision to analyze compatibility between user photos and ideal partner photos
+        """
+        if not user_photos or not ideal_partner_photos:
+            return 0.0
+
+        try:
+            # Prepare images for the API call
+            user_images_b64 = [self.encode_image_to_base64(photo) for photo in user_photos[:3]]  # Limit to 3 photos
+            ideal_images_b64 = [self.encode_image_to_base64(img) for img in ideal_partner_photos[:3]]  # Limit to 3 ideal photos
+
+            # Create the prompt
+            prompt = """
+            You are an expert at analyzing visual compatibility for dating matches.
+
+            I will show you:
+            1. Photos of a person (actual user photos)
+            2. Photos representing someone's ideal partner appearance
+
+            Please analyze how well the actual person matches the ideal partner preferences.
+            Consider factors like:
+            - Physical appearance compatibility
+            - Style and aesthetic preferences
+            - Overall visual appeal and attraction
+            - Energy and vibe compatibility
+
+            Rate the compatibility on a scale from 0.0 to 1.0, where:
+            - 0.0 = No visual match with ideal preferences
+            - 0.5 = Moderate match with some appealing qualities
+            - 1.0 = Excellent match with ideal partner preferences
+
+            Respond with only a single number between 0.0 and 1.0.
+            """
+
+            # Prepare messages with images
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": "Actual person photos:"}
+                    ]
+                }
+            ]
+
+            # Add user photos
+            for img_b64 in user_images_b64:
+                messages[0]["content"].append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}
+                })
+
+            messages[0]["content"].append({"type": "text", "text": "Ideal partner photos:"})
+
+            # Add ideal partner photos
+            for img_b64 in ideal_images_b64:
+                messages[0]["content"].append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}
+                })
+
+            # Make API call
+            client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+            response = await client.chat.completions.create(
+                model=settings.gpt_model,
+                messages=messages,
+                max_tokens=10
+            )
+
+            # Extract and validate the score
+            score_text = response.choices[0].message.content.strip()
+            try:
+                score = float(score_text)
+                return max(0.0, min(1.0, score))  # Clamp between 0 and 1
+            except ValueError:
+                return 0.5  # Default score if parsing fails
+
+        except Exception as e:
+            print(f"Error in ideal partner compatibility analysis: {e}")
+            return 0.0
+
     async def generate_compatibility_reasoning(
         self,
         user_profile: Profile,
@@ -405,19 +487,35 @@ class AIMatchingService:
         # Combine basic similarity with LLM analysis (weighted)
         enhanced_text_similarity = (basic_text_similarity * 0.3) + (llm_text_score * 0.7)
 
-        # 3. Visual compatibility (bidirectional)
+        # 3. Visual compatibility (bidirectional) - Enhanced with ideal partner photos
         user_photos = [photo.file_path for photo in user_profile.photos]
         target_photos = [photo.file_path for photo in target_profile.photos]
         user_expectation_images = [img.file_path for img in user_expectations.example_images]
         target_expectation_images = [img.file_path for img in target_expectations.example_images]
+        user_ideal_partner_photos = [img.file_path for img in user_expectations.ideal_partner_photos]
+        target_ideal_partner_photos = [img.file_path for img in target_expectations.ideal_partner_photos]
 
+        # Original visual compatibility (profile photos vs expectation images)
         user_to_target_visual = await self.get_visual_compatibility(
             target_photos, user_expectation_images
         )
         target_to_user_visual = await self.get_visual_compatibility(
             user_photos, target_expectation_images
         )
-        visual_similarity = (user_to_target_visual + target_to_user_visual) / 2
+
+        # New ideal partner photo compatibility (profile photos vs ideal partner photos)
+        user_to_target_ideal = await self.get_ideal_partner_compatibility(
+            target_photos, user_ideal_partner_photos
+        )
+        target_to_user_ideal = await self.get_ideal_partner_compatibility(
+            user_photos, target_ideal_partner_photos
+        )
+
+        # Combine both visual compatibility scores
+        # Weight: 60% ideal partner matching, 40% expectation images
+        user_to_target_combined = (user_to_target_ideal * 0.6) + (user_to_target_visual * 0.4)
+        target_to_user_combined = (target_to_user_ideal * 0.6) + (target_to_user_visual * 0.4)
+        visual_similarity = (user_to_target_combined + target_to_user_combined) / 2
 
         # 4. Calculate overall compatibility with enhanced weights
         text_weight = 0.65  # Increased weight for enhanced text analysis
@@ -435,7 +533,10 @@ class AIMatchingService:
             "personality_score": (user_to_target_llm.get("personality_score", 0.5) + target_to_user_llm.get("personality_score", 0.5)) / 2,
             "lifestyle_score": (user_to_target_llm.get("lifestyle_score", 0.5) + target_to_user_llm.get("lifestyle_score", 0.5)) / 2,
             "emotional_score": (user_to_target_llm.get("emotional_score", 0.5) + target_to_user_llm.get("emotional_score", 0.5)) / 2,
-            "longterm_score": (user_to_target_llm.get("longterm_score", 0.5) + target_to_user_llm.get("longterm_score", 0.5)) / 2
+            "longterm_score": (user_to_target_llm.get("longterm_score", 0.5) + target_to_user_llm.get("longterm_score", 0.5)) / 2,
+            # New ideal partner compatibility scores
+            "ideal_partner_score": (user_to_target_ideal + target_to_user_ideal) / 2,
+            "expectation_visual_score": (user_to_target_visual + target_to_user_visual) / 2
         }
 
         # 6. Generate detailed reasoning if requested
@@ -482,7 +583,9 @@ class AIMatchingService:
                 "personality_score": compatibility["personality_score"],
                 "lifestyle_score": compatibility["lifestyle_score"],
                 "emotional_score": compatibility["emotional_score"],
-                "longterm_score": compatibility["longterm_score"]
+                "longterm_score": compatibility["longterm_score"],
+                "ideal_partner_score": compatibility.get("ideal_partner_score", 0.0),
+                "expectation_visual_score": compatibility.get("expectation_visual_score", 0.0)
             }
 
             # Add reasoning if requested

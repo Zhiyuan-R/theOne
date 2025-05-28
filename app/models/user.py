@@ -64,6 +64,7 @@ class Expectation(Base):
     # Relationships
     user = relationship("User", back_populates="expectations")
     example_images = relationship("ExampleImage", back_populates="expectation", cascade="all, delete-orphan")
+    ideal_partner_photos = relationship("IdealPartnerPhoto", back_populates="expectation", cascade="all, delete-orphan")
 
 
 class ExampleImage(Base):
@@ -76,6 +77,19 @@ class ExampleImage(Base):
 
     # Relationships
     expectation = relationship("Expectation", back_populates="example_images")
+
+
+class IdealPartnerPhoto(Base):
+    __tablename__ = "ideal_partner_photos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    expectation_id = Column(Integer, ForeignKey("expectations.id"), nullable=False)
+    file_path = Column(String, nullable=False)
+    order_index = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    expectation = relationship("Expectation", back_populates="ideal_partner_photos")
 
 
 class Match(Base):
@@ -95,6 +109,10 @@ class Match(Base):
     lifestyle_score = Column(Float, nullable=True)
     emotional_score = Column(Float, nullable=True)
     longterm_score = Column(Float, nullable=True)
+
+    # Ideal partner photo compatibility scores
+    ideal_partner_score = Column(Float, nullable=True)
+    expectation_visual_score = Column(Float, nullable=True)
 
     # Match metadata
     is_viewed = Column(Boolean, default=False)
