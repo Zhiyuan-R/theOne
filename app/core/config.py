@@ -43,6 +43,10 @@ class Settings(BaseSettings):
 
     def get_upload_dir(self):
         """Get upload directory, checking environment variable first"""
+        # Force production path if not in debug mode and production directory exists
+        production_path = "/app/data/uploads"
+        if not self.debug and os.path.exists(production_path):
+            return production_path
         return os.getenv("UPLOADS_PATH", self.upload_dir)
 
     # Server Configuration (for Docker deployment)

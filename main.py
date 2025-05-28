@@ -576,6 +576,50 @@ async def fix_image_paths():
         db.close()
 
 
+@app.post("/api/copy-files-to-production")
+async def copy_files_to_production():
+    """Copy files from development location to production location"""
+    import shutil
+
+    source_base = "static/uploads"
+    target_base = "/app/data/uploads"
+
+    if not os.path.exists(source_base):
+        return {"status": "error", "message": "Source directory not found"}
+
+    if not os.path.exists(target_base):
+        return {"status": "error", "message": "Target directory not found"}
+
+    copied_count = 0
+
+    try:
+        # Copy files from each subdirectory
+        for subdir in ['profiles', 'ideal_partners', 'expectations', 'audio']:
+            source_dir = os.path.join(source_base, subdir)
+            target_dir = os.path.join(target_base, subdir)
+
+            if os.path.exists(source_dir):
+                os.makedirs(target_dir, exist_ok=True)
+                for filename in os.listdir(source_dir):
+                    source_file = os.path.join(source_dir, filename)
+                    target_file = os.path.join(target_dir, filename)
+
+                    if os.path.isfile(source_file) and not os.path.exists(target_file):
+                        shutil.copy2(source_file, target_file)
+                        copied_count += 1
+
+        return {
+            "status": "success",
+            "copied_count": copied_count,
+            "message": f"Copied {copied_count} files to production location"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
 @app.get("/api/get-user/{email}")
 async def get_user_data(email: str):
     """Get existing user data for editing"""
