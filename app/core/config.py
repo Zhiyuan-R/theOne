@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
 
     # OpenAI Configuration
-    openai_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
     gpt_model: str = "gpt-4o-mini"  # Updated to GPT-4o-mini for cost efficiency
     embedding_model: str = "text-embedding-3-small"  # Updated to OpenAI embedding model
 
