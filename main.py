@@ -511,6 +511,71 @@ async def debug_file_paths():
     return debug_info
 
 
+@app.post("/api/fix-image-paths")
+async def fix_image_paths():
+    """Fix image paths in database for production environment"""
+    from app.db.database import SessionLocal
+    from app.models.user import Photo, IdealPartnerPhoto
+
+    db = SessionLocal()
+    try:
+        fixed_count = 0
+        upload_dir = settings.get_upload_dir()
+
+        # Fix profile photos
+        photos = db.query(Photo).all()
+        for photo in photos:
+            old_path = photo.file_path
+
+            # Extract filename
+            if '/' in old_path:
+                filename = old_path.split('/')[-1]
+            else:
+                filename = old_path
+
+            # Generate new production path
+            new_path = os.path.join(upload_dir, 'profiles', filename)
+
+            if old_path != new_path:
+                photo.file_path = new_path
+                fixed_count += 1
+
+        # Fix ideal partner photos
+        ideal_photos = db.query(IdealPartnerPhoto).all()
+        for photo in ideal_photos:
+            old_path = photo.file_path
+
+            # Extract filename
+            if '/' in old_path:
+                filename = old_path.split('/')[-1]
+            else:
+                filename = old_path
+
+            # Generate new production path
+            new_path = os.path.join(upload_dir, 'ideal_partners', filename)
+
+            if old_path != new_path:
+                photo.file_path = new_path
+                fixed_count += 1
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "fixed_count": fixed_count,
+            "upload_dir": upload_dir,
+            "message": f"Fixed {fixed_count} file paths"
+        }
+    except Exception as e:
+        db.rollback()
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+    finally:
+        db.close()
+
+
 @app.get("/api/get-user/{email}")
 async def get_user_data(email: str):
     """Get existing user data for editing"""
