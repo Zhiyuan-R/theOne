@@ -3,29 +3,26 @@ version: '3.8'
 services:
   theone-app:
     build: .
-    container_name: theone-dating-app
+    container_name: theone-dating-app-prod
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       - DEBUG=False
       - APP_NAME=theOne - AI Dating
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - DATABASE_URL=sqlite:///./theone_production.db
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_PATH=/app/data/database/theone_production.db
+      - UPLOADS_PATH=/app/data/uploads
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GPT_MODEL=gpt-4o-mini
       - EMBEDDING_MODEL=text-embedding-3-small
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
     volumes:
-      # For local development - use bind mounts
-      - ./data:/app/data
-      - ./static/uploads:/app/static/uploads
-      - ./logs:/app/logs
-      # For production - use named volumes (uncomment below and comment above)
-      # - theone_database:/app/data/database
-      # - theone_uploads:/app/data/uploads
-      # - theone_backups:/app/data/backups
-      # - theone_logs:/app/logs
+      # Production persistent volumes
+      - theone_database:/app/data/database
+      - theone_uploads:/app/data/uploads
+      - theone_backups:/app/data/backups
+      - theone_logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -35,14 +32,14 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: theone-nginx
+    container_name: theone-nginx-prod
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./static:/var/www/static
+      - theone_uploads:/var/www/uploads:ro  # Read-only access to uploads
       - ./ssl:/etc/nginx/ssl
     depends_on:
       - theone-app
@@ -54,11 +51,28 @@ services:
 
 volumes:
   # Named volumes for production persistence
+  # These will persist across container restarts and deployments
   theone_database:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/theone/data/database
   theone_uploads:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/theone/data/uploads
   theone_backups:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/theone/data/backups
   theone_logs:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/theone/logs

@@ -1,0 +1,88 @@
+# DigitalOcean App Platform configuration for theOne dating app
+name: theone-dating-app
+region: nyc
+
+# Services
+services:
+- name: theone-web
+  source_dir: /
+  github:
+    repo: Zhiyuan-R/theOne
+    branch: main
+    deploy_on_push: true
+  
+  # Build configuration
+  build_command: |
+    echo "Building theOne dating app..."
+    pip install -r requirements.txt
+  
+  # Run configuration
+  run_command: python main.py
+  
+  # Environment variables
+  envs:
+  - key: DEBUG
+    value: "False"
+  - key: APP_NAME
+    value: "theOne - AI Dating"
+  - key: DATABASE_PATH
+    value: "/app/data/database/theone_production.db"
+  - key: UPLOADS_PATH
+    value: "/app/data/uploads"
+  - key: BACKUPS_PATH
+    value: "/app/data/backups"
+  - key: SECRET_KEY
+    scope: RUN_TIME
+    type: SECRET
+  - key: OPENAI_API_KEY
+    scope: RUN_TIME
+    type: SECRET
+  - key: GPT_MODEL
+    value: "gpt-4o-mini"
+  - key: EMBEDDING_MODEL
+    value: "text-embedding-3-small"
+  - key: CORS_ORIGINS
+    value: "*"
+  
+  # Instance configuration
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  
+  # Health check
+  health_check:
+    http_path: /health
+    initial_delay_seconds: 60
+    period_seconds: 30
+    timeout_seconds: 10
+    success_threshold: 1
+    failure_threshold: 3
+  
+  # HTTP configuration
+  http_port: 8000
+  
+  # Routes
+  routes:
+  - path: /
+  
+  # Persistent storage (this is the key part!)
+  volumes:
+  - name: theone-database
+    mount_path: /app/data/database
+    size: 1GB
+  - name: theone-uploads
+    mount_path: /app/data/uploads
+    size: 5GB
+  - name: theone-backups
+    mount_path: /app/data/backups
+    size: 2GB
+
+# Static sites (for serving uploaded files efficiently)
+static_sites:
+- name: theone-static
+  source_dir: /static
+  github:
+    repo: Zhiyuan-R/theOne
+    branch: main
+    deploy_on_push: true
+  routes:
+  - path: /static

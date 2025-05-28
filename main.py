@@ -42,8 +42,13 @@ app.include_router(expectations.router, prefix="/api")
 app.include_router(matches.router, prefix="/api")
 
 
-# Initialize database on startup
-create_tables()
+# Initialize database on startup (only if it doesn't exist)
+import os
+if not os.path.exists("theone_production.db"):
+    print("🗄️ Creating new database...")
+    create_tables()
+else:
+    print("🗄️ Using existing database...")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -93,10 +98,17 @@ async def admin_dashboard(request: Request):
                 print(f"DEBUG: User {user.email} photos: {[photo.file_path for photo in user.profile.photos]}")
                 print(f"DEBUG: Photo URLs: {photo_urls}")
 
-            # Get expectations
+            # Get expectations and ideal partner photos
             expectations_desc = ""
+            ideal_partner_photos = []
             if hasattr(user, 'expectations') and user.expectations:
                 expectations_desc = user.expectations.description
+                # Get ideal partner photos
+                for photo in user.expectations.ideal_partner_photos:
+                    if photo.file_path.startswith('static/'):
+                        ideal_partner_photos.append(f"/{photo.file_path}")
+                    else:
+                        ideal_partner_photos.append(f"/static/{photo.file_path}")
 
             # Check completeness
             has_profile = bool(profile_desc)
@@ -113,9 +125,12 @@ async def admin_dashboard(request: Request):
                 'expectations_description': expectations_desc,
                 'photo_count': photo_count,
                 'photo_urls': photo_urls,
+                'ideal_partner_photos': ideal_partner_photos,
+                'ideal_partner_count': len(ideal_partner_photos),
                 'has_profile': has_profile,
                 'has_expectations': has_expectations,
                 'has_photo': has_photo,
+                'has_ideal_photos': len(ideal_partner_photos) > 0,
                 'is_complete': is_complete
             })
 
@@ -170,9 +185,19 @@ async def view_user_detail(request: Request, user_id: int):
 
         expectations_data = None
         if hasattr(user, 'expectations') and user.expectations:
+            # Get ideal partner photos
+            ideal_partner_photos = []
+            for photo in user.expectations.ideal_partner_photos:
+                if photo.file_path.startswith('static/'):
+                    photo_url = f"/{photo.file_path}"
+                else:
+                    photo_url = f"/static/{photo.file_path}"
+                ideal_partner_photos.append({'path': photo.file_path, 'url': photo_url})
+
             expectations_data = {
                 'description': user.expectations.description,
-                'created_at': user.expectations.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                'created_at': user.expectations.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'ideal_partner_photos': ideal_partner_photos
             }
 
         return templates.TemplateResponse("user_detail.html", {

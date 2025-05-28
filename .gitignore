@@ -46,6 +46,11 @@ venv.bak/
 static/uploads/*
 !static/uploads/.gitkeep
 
+# Backups
+backups/
+*_backup_*.db
+static/uploads_backup_*
+
 # Logs
 *.log
 logs/

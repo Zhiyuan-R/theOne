@@ -10,14 +10,14 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
+
         .container {
             max-width: 800px;
             margin: 0 auto;
@@ -26,14 +26,14 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             overflow: hidden;
         }
-        
+
         .header {
             background: linear-gradient(135deg, #ff6b6b, #ee5a24);
             color: white;
             padding: 30px;
             text-align: center;
         }
-        
+
         .back-btn {
             position: absolute;
             top: 30px;
@@ -47,49 +47,49 @@
             text-decoration: none;
             font-weight: bold;
         }
-        
+
         .back-btn:hover {
             background: rgba(255,255,255,0.3);
         }
-        
+
         .content {
             padding: 30px;
         }
-        
+
         .user-info {
             background: #f8f9fa;
             padding: 20px;
             border-radius: 15px;
             margin-bottom: 30px;
         }
-        
+
         .info-row {
             display: flex;
             justify-content: space-between;
             margin-bottom: 10px;
         }
-        
+
         .info-label {
             font-weight: bold;
             color: #555;
         }
-        
+
         .info-value {
             color: #333;
         }
-        
+
         .section {
             margin-bottom: 30px;
             padding: 20px;
             border: 2px solid #f0f0f0;
             border-radius: 15px;
         }
-        
+
         .section.complete {
             border-color: #00d2d3;
             background: linear-gradient(135deg, #f8ffff, #f0fffe);
         }
-        
+
         .section-title {
             font-size: 1.3em;
             font-weight: bold;
@@ -99,13 +99,13 @@
             align-items: center;
             gap: 10px;
         }
-        
+
         .section-content {
             color: #555;
             line-height: 1.6;
             white-space: pre-wrap;
         }
-        
+
         .section-meta {
             margin-top: 15px;
             padding-top: 15px;
@@ -113,18 +113,18 @@
             color: #666;
             font-size: 0.9em;
         }
-        
+
         .photos-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 15px;
         }
-        
+
         .photo-item {
             text-align: center;
         }
-        
+
         .photo {
             width: 100%;
             max-width: 200px;
@@ -135,43 +135,43 @@
             cursor: pointer;
             transition: all 0.3s ease;
         }
-        
+
         .photo:hover {
             border-color: #667eea;
             transform: scale(1.05);
         }
-        
+
         .photo-path {
             margin-top: 8px;
             font-size: 0.8em;
             color: #666;
             word-break: break-all;
         }
-        
+
         .empty-section {
             text-align: center;
             color: #999;
             font-style: italic;
             padding: 40px 20px;
         }
-        
+
         .status-badge {
             padding: 5px 12px;
             border-radius: 15px;
             font-size: 0.9em;
             font-weight: bold;
         }
-        
+
         .status-complete {
             background: #d4edda;
             color: #155724;
         }
-        
+
         .status-incomplete {
             background: #f8d7da;
             color: #721c24;
         }
-        
+
         /* Modal for full-size photos */
         .modal {
             display: none;
@@ -183,7 +183,7 @@
             height: 100%;
             background-color: rgba(0,0,0,0.9);
         }
-        
+
         .modal-content {
             margin: auto;
             display: block;
@@ -192,7 +192,7 @@
             max-height: 80%;
             object-fit: contain;
         }
-        
+
         .close {
             position: absolute;
             top: 15px;
@@ -202,7 +202,7 @@
             font-weight: bold;
             cursor: pointer;
         }
-        
+
         .close:hover {
             color: #bbb;
         }
@@ -215,7 +215,7 @@
             <h1>👤 User Details</h1>
             <p>{{ user.email }}</p>
         </div>
-        
+
         <div class="content">
             <div class="user-info">
                 <div class="info-row">
@@ -241,7 +241,7 @@
                     </span>
                 </div>
             </div>
-            
+
             <!-- Profile Section -->
             <div class="section {% if profile %}complete{% endif %}">
                 <div class="section-title">
@@ -252,11 +252,11 @@
                         <span class="status-badge status-incomplete">Missing</span>
                     {% endif %}
                 </div>
-                
+
                 {% if profile %}
                     <div class="section-content">{{ profile.description }}</div>
                     <div class="section-meta">Created: {{ profile.created_at }}</div>
-                    
+
                     {% if profile.photos %}
                         <div class="section-title" style="margin-top: 30px; margin-bottom: 15px;">
                             📸 Uploaded Photos ({{ profile.photos|length }})
@@ -276,7 +276,7 @@
                     </div>
                 {% endif %}
             </div>
-            
+
             <!-- Expectations Section -->
             <div class="section {% if expectations %}complete{% endif %}">
                 <div class="section-title">
@@ -287,10 +287,24 @@
                         <span class="status-badge status-incomplete">Missing</span>
                     {% endif %}
                 </div>
-                
+
                 {% if expectations %}
                     <div class="section-content">{{ expectations.description }}</div>
                     <div class="section-meta">Created: {{ expectations.created_at }}</div>
+
+                    {% if expectations.ideal_partner_photos %}
+                        <div class="section-title" style="margin-top: 30px; margin-bottom: 15px;">
+                            💕 Ideal Partner Photos ({{ expectations.ideal_partner_photos|length }})
+                        </div>
+                        <div class="photos-grid">
+                            {% for photo in expectations.ideal_partner_photos %}
+                            <div class="photo-item">
+                                <img src="{{ photo.url }}" alt="Ideal partner photo" class="photo" onclick="openModal('{{ photo.url }}')" style="border-color: #ff6b6b;">
+                                <div class="photo-path">{{ photo.path }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 {% else %}
                     <div class="empty-section">
                         No expectations provided yet
@@ -299,23 +313,23 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Photo Modal -->
     <div id="photoModal" class="modal">
         <span class="close" onclick="closeModal()">&times;</span>
         <img class="modal-content" id="modalImage">
     </div>
-    
+
     <script>
         function openModal(imageSrc) {
             document.getElementById('photoModal').style.display = 'block';
             document.getElementById('modalImage').src = imageSrc;
         }
-        
+
         function closeModal() {
             document.getElementById('photoModal').style.display = 'none';
         }
-        
+
         // Close modal when clicking outside the image
         window.onclick = function(event) {
             const modal = document.getElementById('photoModal');
