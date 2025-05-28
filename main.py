@@ -32,8 +32,39 @@ app.add_middleware(
 # Setup templates
 templates = Jinja2Templates(directory="templates")
 
+# Mount static files with proper configuration for production
+from app.core.config import settings
+import os
+
+# Get the actual upload directory (may be different in production)
+upload_dir = settings.get_upload_dir()
+static_dir = "static"
+
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# Mount uploads directory separately for better control
+if os.path.exists(upload_dir):
+    app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+
+def get_photo_url(file_path: str) -> str:
+    """Generate proper photo URL for both development and production"""
+    if not file_path:
+        return None
+
+    # Handle different path formats
+    if file_path.startswith('/app/data/uploads/'):
+        # Production path - use /uploads/ mount
+        return file_path.replace('/app/data/uploads/', '/uploads/')
+    elif file_path.startswith('static/uploads/'):
+        # Development path - use /uploads/ mount
+        return file_path.replace('static/uploads/', '/uploads/')
+    elif file_path.startswith('static/'):
+        # Other static files
+        return f"/{file_path}"
+    else:
+        # Assume it's a relative path in uploads
+        return f"/uploads/{file_path}"
 
 # Include API routers
 app.include_router(auth.router, prefix="/api")
@@ -85,14 +116,12 @@ async def admin_dashboard(request: Request):
             if hasattr(user, 'profile') and user.profile:
                 profile_desc = user.profile.description
                 photo_count = len(user.profile.photos)
-                # Fix photo URLs to use correct static path
+                # Generate proper photo URLs
                 photo_urls = []
                 for photo in user.profile.photos:
-                    # Convert file path to proper static URL
-                    if photo.file_path.startswith('static/'):
-                        photo_urls.append(f"/{photo.file_path}")
-                    else:
-                        photo_urls.append(f"/static/{photo.file_path}")
+                    photo_url = get_photo_url(photo.file_path)
+                    if photo_url:
+                        photo_urls.append(photo_url)
 
                 # Debug: print photo paths to help diagnose
                 print(f"DEBUG: User {user.email} photos: {[photo.file_path for photo in user.profile.photos]}")
@@ -105,10 +134,9 @@ async def admin_dashboard(request: Request):
                 expectations_desc = user.expectations.description
                 # Get ideal partner photos
                 for photo in user.expectations.ideal_partner_photos:
-                    if photo.file_path.startswith('static/'):
-                        ideal_partner_photos.append(f"/{photo.file_path}")
-                    else:
-                        ideal_partner_photos.append(f"/static/{photo.file_path}")
+                    photo_url = get_photo_url(photo.file_path)
+                    if photo_url:
+                        ideal_partner_photos.append(photo_url)
 
             # Check completeness
             has_profile = bool(profile_desc)
@@ -168,14 +196,12 @@ async def view_user_detail(request: Request, user_id: int):
         # Get all user data
         profile_data = None
         if hasattr(user, 'profile') and user.profile:
-            # Fix photo URLs for user detail view
+            # Generate proper photo URLs for user detail view
             photos = []
             for photo in user.profile.photos:
-                if photo.file_path.startswith('static/'):
-                    photo_url = f"/{photo.file_path}"
-                else:
-                    photo_url = f"/static/{photo.file_path}"
-                photos.append({'path': photo.file_path, 'url': photo_url})
+                photo_url = get_photo_url(photo.file_path)
+                if photo_url:
+                    photos.append({'path': photo.file_path, 'url': photo_url})
 
             profile_data = {
                 'description': user.profile.description,
@@ -188,11 +214,9 @@ async def view_user_detail(request: Request, user_id: int):
             # Get ideal partner photos
             ideal_partner_photos = []
             for photo in user.expectations.ideal_partner_photos:
-                if photo.file_path.startswith('static/'):
-                    photo_url = f"/{photo.file_path}"
-                else:
-                    photo_url = f"/static/{photo.file_path}"
-                ideal_partner_photos.append({'path': photo.file_path, 'url': photo_url})
+                photo_url = get_photo_url(photo.file_path)
+                if photo_url:
+                    ideal_partner_photos.append({'path': photo.file_path, 'url': photo_url})
 
             expectations_data = {
                 'description': user.expectations.description,
@@ -300,8 +324,11 @@ async def find_matches(
         photo_path = None
         if photo:
             import os
-            os.makedirs("static/uploads/profiles", exist_ok=True)
-            photo_path = f"static/uploads/profiles/{user.id}_{photo.filename}"
+            # Use the configured upload directory
+            upload_base = settings.get_upload_dir()
+            profiles_dir = f"{upload_base}/profiles"
+            os.makedirs(profiles_dir, exist_ok=True)
+            photo_path = f"{profiles_dir}/{user.id}_{photo.filename}"
             with open(photo_path, "wb") as buffer:
                 content = await photo.read()
                 buffer.write(content)
@@ -338,7 +365,9 @@ async def find_matches(
             import os
 
             # Create directory for ideal partner photos
-            os.makedirs("static/uploads/ideal_partners", exist_ok=True)
+            upload_base = settings.get_upload_dir()
+            ideal_partners_dir = f"{upload_base}/ideal_partners"
+            os.makedirs(ideal_partners_dir, exist_ok=True)
 
             # Remove old ideal partner photos
             for old_photo in user.expectations.ideal_partner_photos:
@@ -347,7 +376,7 @@ async def find_matches(
             # Add new ideal partner photos
             for i, photo in enumerate(ideal_partner_photos):
                 if photo.filename:  # Check if file was actually uploaded
-                    photo_path = f"static/uploads/ideal_partners/{user.id}_{i}_{photo.filename}"
+                    photo_path = f"{ideal_partners_dir}/{user.id}_{i}_{photo.filename}"
                     with open(photo_path, "wb") as buffer:
                         content = await photo.read()
                         buffer.write(content)
@@ -384,7 +413,7 @@ async def find_matches(
             # Get user's photo
             photo_url = None
             if hasattr(matched_user, 'profile') and matched_user.profile and matched_user.profile.photos:
-                photo_url = f"/{matched_user.profile.photos[0].file_path}"
+                photo_url = get_photo_url(matched_user.profile.photos[0].file_path)
 
             result.append({
                 "email": matched_user.email,
@@ -403,6 +432,40 @@ async def find_matches(
         db.close()
 
 
+@app.get("/api/debug/file-paths")
+async def debug_file_paths():
+    """Debug endpoint to check file paths and directories"""
+    import os
+    from app.core.config import settings
+
+    upload_dir = settings.get_upload_dir()
+
+    debug_info = {
+        "upload_dir": upload_dir,
+        "upload_dir_exists": os.path.exists(upload_dir),
+        "static_dir_exists": os.path.exists("static"),
+        "current_working_directory": os.getcwd(),
+        "environment_variables": {
+            "DATABASE_PATH": os.getenv("DATABASE_PATH"),
+            "UPLOADS_PATH": os.getenv("UPLOADS_PATH"),
+        },
+        "directory_contents": {}
+    }
+
+    # Check directory contents
+    for dir_name in [upload_dir, "static", "/app/data/uploads"]:
+        if os.path.exists(dir_name):
+            try:
+                contents = os.listdir(dir_name)
+                debug_info["directory_contents"][dir_name] = contents
+            except Exception as e:
+                debug_info["directory_contents"][dir_name] = f"Error: {str(e)}"
+        else:
+            debug_info["directory_contents"][dir_name] = "Directory does not exist"
+
+    return debug_info
+
+
 @app.get("/api/get-user/{email}")
 async def get_user_data(email: str):
     """Get existing user data for editing"""
@@ -418,7 +481,7 @@ async def get_user_data(email: str):
         # Get user's current data
         photo_url = None
         if hasattr(user, 'profile') and user.profile and user.profile.photos:
-            photo_url = f"/{user.profile.photos[0].file_path}"
+            photo_url = get_photo_url(user.profile.photos[0].file_path)
 
         return {
             "exists": True,

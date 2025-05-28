@@ -10,15 +10,15 @@ services:
     repo: Zhiyuan-R/theOne
     branch: main
     deploy_on_push: true
-  
+
   # Build configuration
   build_command: |
     echo "Building theOne dating app..."
     pip install -r requirements.txt
-  
+
   # Run configuration
   run_command: python main.py
-  
+
   # Environment variables
   envs:
   - key: DEBUG
@@ -43,11 +43,11 @@ services:
     value: "text-embedding-3-small"
   - key: CORS_ORIGINS
     value: "*"
-  
+
   # Instance configuration
   instance_count: 1
   instance_size_slug: basic-xxs
-  
+
   # Health check
   health_check:
     http_path: /health
@@ -56,14 +56,14 @@ services:
     timeout_seconds: 10
     success_threshold: 1
     failure_threshold: 3
-  
+
   # HTTP configuration
   http_port: 8000
-  
+
   # Routes
   routes:
   - path: /
-  
+
   # Persistent storage (this is the key part!)
   volumes:
   - name: theone-database
@@ -76,13 +76,5 @@ services:
     mount_path: /app/data/backups
     size: 2GB
 
-# Static sites (for serving uploaded files efficiently)
-static_sites:
-- name: theone-static
-  source_dir: /static
-  github:
-    repo: Zhiyuan-R/theOne
-    branch: main
-    deploy_on_push: true
-  routes:
-  - path: /static
+# Note: Static files are served directly by the FastAPI app
+# No separate static site needed since we're using FastAPI's StaticFiles
