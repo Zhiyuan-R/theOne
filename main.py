@@ -79,7 +79,18 @@ async def admin_dashboard(request: Request):
             if hasattr(user, 'profile') and user.profile:
                 profile_desc = user.profile.description
                 photo_count = len(user.profile.photos)
-                photo_urls = [f"/{photo.file_path}" for photo in user.profile.photos]
+                # Fix photo URLs to use correct static path
+                photo_urls = []
+                for photo in user.profile.photos:
+                    # Convert file path to proper static URL
+                    if photo.file_path.startswith('static/'):
+                        photo_urls.append(f"/{photo.file_path}")
+                    else:
+                        photo_urls.append(f"/static/{photo.file_path}")
+
+                # Debug: print photo paths to help diagnose
+                print(f"DEBUG: User {user.email} photos: {[photo.file_path for photo in user.profile.photos]}")
+                print(f"DEBUG: Photo URLs: {photo_urls}")
 
             # Get expectations
             expectations_desc = ""
@@ -141,10 +152,19 @@ async def view_user_detail(request: Request, user_id: int):
         # Get all user data
         profile_data = None
         if hasattr(user, 'profile') and user.profile:
+            # Fix photo URLs for user detail view
+            photos = []
+            for photo in user.profile.photos:
+                if photo.file_path.startswith('static/'):
+                    photo_url = f"/{photo.file_path}"
+                else:
+                    photo_url = f"/static/{photo.file_path}"
+                photos.append({'path': photo.file_path, 'url': photo_url})
+
             profile_data = {
                 'description': user.profile.description,
                 'created_at': user.profile.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                'photos': [{'path': photo.file_path, 'url': f"/{photo.file_path}"} for photo in user.profile.photos]
+                'photos': photos
             }
 
         expectations_data = None
