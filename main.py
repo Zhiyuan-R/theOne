@@ -442,13 +442,29 @@ async def find_matches(
         if not complete_users:
             return []
 
-        # Get AI matches - get more to filter for high compatibility
-        matches = await ai_matching_service.find_daily_matches(
-            user, complete_users, limit=len(complete_users), include_reasoning=False
-        )
+        # Get AI matches using NEW BIDIRECTIONAL ALGORITHM
+        matches = []
+        for potential_match in complete_users:
+            if potential_match.id == user.id:
+                continue  # Skip self
 
-        # STRICT MATCHING: Only show very high compatibility (>= 0.7 = 70%)
-        high_compatibility_matches = [m for m in matches if m["compatibility_score"] >= 0.7]
+            # Calculate bidirectional compatibility
+            compatibility = await ai_matching_service.calculate_bidirectional_compatibility(
+                user, potential_match, include_reasoning=False
+            )
+
+            # Only include if mutual compatibility is high (>= 0.7 = 70%)
+            if compatibility["mutual_compatibility"] >= 0.7:
+                matches.append({
+                    "user_id": potential_match.id,
+                    "compatibility_score": compatibility["mutual_compatibility"],
+                    "user_a_score": compatibility["user_a_score"],
+                    "user_b_score": compatibility["user_b_score"]
+                })
+
+        # Sort by compatibility score (highest first)
+        matches.sort(key=lambda x: x["compatibility_score"], reverse=True)
+        high_compatibility_matches = matches  # All matches are already high compatibility
 
         # Format response with photos
         result = []
@@ -668,6 +684,85 @@ async def backup_user_data():
             "status": "error",
             "error": str(e)
         }
+
+
+@app.get("/api/algorithm-version")
+async def get_algorithm_version():
+    """Check which algorithm version is running"""
+    return {
+        "algorithm": "bidirectional_compatibility_v2",
+        "description": "Using new bidirectional matching with mutual compatibility scoring",
+        "threshold": 0.7,
+        "timestamp": "2025-01-28"
+    }
+
+
+@app.post("/api/debug-match")
+async def debug_specific_match():
+    """Debug why two specific users aren't matching"""
+    from app.db.database import SessionLocal
+    from app.models.user import User
+    from app.services.ai_matching import ai_matching_service
+
+    db = SessionLocal()
+    try:
+        # Get the two users from the screenshot
+        user1 = db.query(User).filter(User.email == "a329571438@gmail.com").first()
+        user2 = db.query(User).filter(User.email == "renzhiy1@msu.edu").first()
+
+        if not user1 or not user2:
+            return {"error": "One or both users not found"}
+
+        if not (user1.profile and user1.expectations and user2.profile and user2.expectations):
+            return {"error": "Users missing profile or expectations data"}
+
+        # Test the new bidirectional matching
+        compatibility = await ai_matching_service.calculate_bidirectional_compatibility(
+            user1, user2, include_reasoning=True
+        )
+
+        # Also test individual scores
+        user1_scores_user2 = await ai_matching_service.calculate_user_score_for_target(
+            user1.profile.description,
+            user1.expectations.description,
+            [photo.file_path for photo in user1.expectations.ideal_partner_photos],
+            user2.profile.description,
+            [photo.file_path for photo in user2.profile.photos]
+        )
+
+        user2_scores_user1 = await ai_matching_service.calculate_user_score_for_target(
+            user2.profile.description,
+            user2.expectations.description,
+            [photo.file_path for photo in user2.expectations.ideal_partner_photos],
+            user1.profile.description,
+            [photo.file_path for photo in user1.profile.photos]
+        )
+
+        return {
+            "user1_email": user1.email,
+            "user1_profile": user1.profile.description,
+            "user1_expectations": user1.expectations.description,
+            "user1_photos": len(user1.profile.photos),
+            "user1_ideal_photos": len(user1.expectations.ideal_partner_photos),
+
+            "user2_email": user2.email,
+            "user2_profile": user2.profile.description,
+            "user2_expectations": user2.expectations.description,
+            "user2_photos": len(user2.profile.photos),
+            "user2_ideal_photos": len(user2.expectations.ideal_partner_photos),
+
+            "bidirectional_compatibility": compatibility,
+            "user1_scores_user2": user1_scores_user2,
+            "user2_scores_user1": user2_scores_user1,
+
+            "should_match": compatibility["mutual_compatibility"] >= 0.7,
+            "match_threshold": 0.7
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
 
 
 @app.get("/api/get-user/{email}")
